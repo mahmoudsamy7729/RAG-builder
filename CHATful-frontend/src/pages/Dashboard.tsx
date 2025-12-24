@@ -7,6 +7,7 @@ import {
   MessageCircle, 
   Crown,
   Code,
+  Lock,
   MoreVertical,
   ChevronRight,
 } from "lucide-react";
@@ -21,12 +22,30 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { Chatbot, ChatbotStatus } from "@/types/chatbot";
 
-interface Chatbot {
-  id: string;
-  name: string;
-  status: "active" | "archived";
-}
+const statusStyles: Record<ChatbotStatus, { label: string; className: string; dotClassName: string }> = {
+  active: {
+    label: "Active",
+    className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200",
+    dotClassName: "bg-emerald-500",
+  },
+  pending: {
+    label: "Pending",
+    className: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200",
+    dotClassName: "bg-amber-500",
+  },
+  failed: {
+    label: "Failed",
+    className: "bg-destructive/10 text-destructive",
+    dotClassName: "bg-destructive",
+  },
+  archived: {
+    label: "Archived",
+    className: "bg-muted text-muted-foreground",
+    dotClassName: "bg-muted-foreground",
+  },
+};
 
 const Dashboard = () => {
   const [chatbots, setChatbots] = useState<Chatbot[]>([]);
@@ -146,23 +165,39 @@ const Dashboard = () => {
                       <div>
                         <h3 className="font-medium">{bot.name}</h3>
                         <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                          <span className={`flex items-center gap-2 px-2 py-1 rounded-full text-xs font-medium ${
-                            bot.status === "active" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200" : "bg-muted text-muted-foreground"
-                          }`}>
-                            <span className={`h-2 w-2 rounded-full ${bot.status === "active" ? "bg-emerald-500" : "bg-muted-foreground"}`} />
-                            {bot.status === "active" ? "Active" : "Archived"}
+                          <span
+                            className={`flex items-center gap-2 px-2 py-1 rounded-full text-xs font-medium ${statusStyles[bot.status]?.className ?? statusStyles.archived.className}`}
+                          >
+                            <span
+                              className={`h-2 w-2 rounded-full ${statusStyles[bot.status]?.dotClassName ?? statusStyles.archived.dotClassName}`}
+                            />
+                            {statusStyles[bot.status]?.label ?? statusStyles.archived.label}
                           </span>
                         </div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="sm" asChild className="hidden sm:flex">
-                        <Link to={`/dashboard/chatbots/${bot.id}/embed`}>
-                          <Code className="h-4 w-4 mr-2" />
+                      {bot.status === "active" ? (
+                        <Button variant="ghost" size="sm" asChild className="hidden sm:flex">
+                          <Link to={`/dashboard/chatbots/${bot.id}/embed`}>
+                            <Code className="h-4 w-4 mr-2" />
+                            Get Script
+                          </Link>
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="hidden sm:flex"
+                          disabled
+                          aria-disabled="true"
+                          title="Chatbot must be active to get the script."
+                        >
+                          <Lock className="h-4 w-4 mr-2" />
                           Get Script
-                        </Link>
-                      </Button>
+                        </Button>
+                      )}
                       <Button variant="outline" size="sm" asChild className="hidden sm:flex">
                         <Link to={`/dashboard/chatbots/${bot.id}`}>
                           Manage
@@ -180,9 +215,13 @@ const Dashboard = () => {
                           <DropdownMenuItem asChild>
                             <Link to={`/dashboard/chatbots/${bot.id}`}>Manage</Link>
                           </DropdownMenuItem>
-                          <DropdownMenuItem asChild>
-                            <Link to={`/dashboard/chatbots/${bot.id}/embed`}>Get Script</Link>
-                          </DropdownMenuItem>
+                          {bot.status === "active" ? (
+                            <DropdownMenuItem asChild>
+                              <Link to={`/dashboard/chatbots/${bot.id}/embed`}>Get Script</Link>
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem disabled>Get Script (Locked)</DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
