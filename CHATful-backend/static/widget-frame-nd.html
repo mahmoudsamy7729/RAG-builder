@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CHATful Widget</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --background: #ffffff;
+      --card: #ffffff;
+      --card-foreground: #0f172a;
+      --muted-foreground: #64748b;
+      --secondary: #e2e8f0;
+      --border: #e2e8f0;
+      --shadow-xl: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.1);
+      --radius: 16px;
+      --primary: #10b981;
+      --primary-foreground: #ffffff;
+      --accent: #6d28d9;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      background: transparent;
+      color: var(--card-foreground);
+    }
+
+    .chat-root {
+      position: fixed;
+      bottom: 32px;
+      right: 32px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 12px;
+      z-index: 9999;
+    }
+
+    .chat-root.left {
+      right: auto;
+      left: 32px;
+      align-items: flex-start;
+    }
+
+    .chat-trigger {
+      width: 56px;
+      height: 56px;
+      border-radius: 9999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--primary);
+      color: var(--primary-foreground);
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+      transition: transform 150ms ease;
+    }
+
+    .chat-trigger:hover { transform: scale(1.05); }
+
+    .chat-window {
+      width: 100%;
+      height: 100%;
+      background: var(--card);
+      border-radius: 20px;
+      box-shadow: none;     /* shadow belongs to iframe, not content */
+      border: none;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chat-header {
+      padding: 16px;
+      background: var(--primary);
+      color: var(--primary-foreground);
+    }
+
+    .chat-header-content {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .chat-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.16);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .chat-title {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.25;
+    }
+
+    .chat-status {
+      margin: 4px 0 0;
+      font-size: 12px;
+      opacity: 0.8;
+    }
+
+    .chat-body {
+      padding: 16px;
+      background: #f8fafc;
+      min-height: 200px;
+      max-height: 320px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .message-row {
+      display: flex;
+      width: 100%;
+    }
+
+    .message-row.user { justify-content: flex-end; }
+
+    .message-bubble {
+      max-width: 80%;
+      padding: 12px;
+      border-radius: 18px;
+      font-size: 14px;
+      line-height: 1.4;
+      word-break: break-word;
+      background: #e2e8f0;
+      color: var(--card-foreground);
+    }
+
+    .message-row.bot .message-bubble {
+      border-bottom-left-radius: 6px;
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+
+    .message-row.user .message-bubble {
+      border-bottom-right-radius: 6px;
+      background: var(--primary);
+      color: var(--primary-foreground);
+    }
+
+    .chat-footer {
+      padding: 16px;
+      border-top: 1px solid var(--border);
+      background: var(--card);
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .chat-input {
+      flex: 1;
+      padding: 10px 14px;
+      border-radius: 9999px;
+      border: 1px solid var(--border);
+      background: #e2e8f0;
+      font-size: 14px;
+      line-height: 1.4;
+      outline: none;
+      transition: border-color 120ms ease, box-shadow 120ms ease;
+    }
+
+    .chat-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+      background: #fff;
+    }
+
+    .send-button {
+      padding: 10px;
+      border-radius: 9999px;
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: transform 120ms ease, filter 120ms ease, box-shadow 120ms ease;
+    }
+
+    .send-button:hover { filter: brightness(1.05); }
+    .send-button:active { transform: scale(0.98); }
+    .send-button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+      filter: none;
+    }
+
+    .powered-by {
+      margin: 12px 0 0;
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted-foreground);
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="chat-root" id="chat-root">
+    <button class="chat-trigger" id="chat-trigger" aria-label="Open chat widget">
+      <svg xmlns="http://www.w3.org/2000/svg" class="icon" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" width="24" height="24">
+        <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+        <path d="M8 9h8m-8 4h6" />
+        <path d="M11.197 19.74a9 9 0 1 1 3.243 -16.74h4.56v.6a3.4 3.4 0 0 1 -2.211 3.172a10 10 0 0 1 .192 1.928a9 9 0 0 1 -5.784 8.367z" />
+      </svg>
+    </button>
+
+    <div class="chat-window" id="chat-window">
+      <div class="chat-header" id="chat-header">
+        <div class="chat-header-content">
+          <div class="chat-avatar">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" width="20" height="20">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+              <path d="M12 20c4.418 0 8 -1.79 8 -4v-6c0 -2.21 -3.582 -4 -8 -4s-8 1.79 -8 4v6c0 2.21 3.582 4 8 4z" />
+              <path d="M8 10h.01" />
+              <path d="M12 10h.01" />
+              <path d="M16 10h.01" />
+            </svg>
+          </div>
+          <div>
+            <p class="chat-title" id="chat-title">Support</p>
+            <p class="chat-status">Online</p>
+          </div>
+        </div>
+      </div>
+
+
+      <div class="chat-footer">
+        <form class="input-row" id="chat-form">
+          <input type="text" id="chat-input" class="chat-input" placeholder="Type your message" autocomplete="off" />
+          <button type="submit" class="send-button" id="send-button" aria-label="Send message">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" width="20" height="20">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+              <path d="M10 14l11 -11" />
+              <path d="M21 3l-6.5 18a0.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a0.55 .55 0 0 1 0 -1l18 -6.5" />
+            </svg>
+          </button>
+        </form>
+        <p class="powered-by" id="powered-by">Powered by <strong>CHATful</strong></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      const defaultSettings = {
+        display_name: "Support",
+        primary_color: getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() || "#10b981",
+        accent_color: getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#6d28d9",
+        position: "bottom-right",
+        welcome_message: "Hi there! How can I help you?",
+        input_placeholder: "Type your message...",
+        show_powered_by: true,
+      };
+
+      let botId = null;
+      let apiBase = "";
+      let settings = { ...defaultSettings };
+      let isSending = false;
+
+      const rootEl = document.getElementById("chat-root");
+      const chatWindow = document.getElementById("chat-window");
+      const chatBody = document.getElementById("chat-body");
+      const chatForm = document.getElementById("chat-form");
+      const chatInput = document.getElementById("chat-input");
+      const chatTitle = document.getElementById("chat-title");
+      const poweredBy = document.getElementById("powered-by");
+      const sendButton = document.getElementById("send-button");
+      const trigger = document.getElementById("chat-trigger");
+      const header = document.getElementById("chat-header");
+
+      function uuid() {
+        return (crypto.randomUUID && crypto.randomUUID()) || "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0;
+          const v = c === "x" ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      }
+
+      function getVisitorId() {
+        const key = "chatful_visitor_id";
+        let id = localStorage.getItem(key);
+        if (!id) {
+          id = uuid();
+          localStorage.setItem(key, id);
+        }
+        return id;
+      }
+
+      function clearMessages() {
+        chatBody.innerHTML = "";
+      }
+
+      function appendMessage(sender, text) {
+        const row = document.createElement("div");
+        row.className = `message-row ${sender === "user" ? "user" : "bot"}`;
+
+        const bubble = document.createElement("div");
+        bubble.className = "message-bubble";
+        bubble.textContent = text;
+        row.appendChild(bubble);
+        chatBody.appendChild(row);
+        chatBody.scrollTop = chatBody.scrollHeight;
+      }
+
+      function setLoading(state) {
+        isSending = state;
+        sendButton.disabled = state;
+        chatInput.disabled = state;
+      }
+
+      function applySettings(newSettings) {
+        settings = { ...defaultSettings, ...newSettings };
+
+        document.documentElement.style.setProperty("--primary", settings.primary_color);
+        document.documentElement.style.setProperty("--accent", settings.accent_color);
+        chatTitle.textContent = settings.display_name || "Support";
+        header.style.background = settings.primary_color;
+        trigger.style.background = settings.primary_color;
+        sendButton.style.background = settings.accent_color;
+
+        chatInput.placeholder = settings.input_placeholder || defaultSettings.input_placeholder;
+
+        poweredBy.classList.toggle("hidden", !settings.show_powered_by);
+
+        if (settings.position === "bottom-left") {
+          rootEl.classList.add("left");
+        } else {
+          rootEl.classList.remove("left");
+        }
+
+        clearMessages();
+        if (settings.welcome_message) {
+          appendMessage("bot", settings.welcome_message);
+        }
+      }
+
+      async function sendMessage(message) {
+        if (!botId || !apiBase) {
+          appendMessage("bot", "Sorry, something went wrong.");
+          return;
+        }
+
+        const visitorId = getVisitorId();
+        try {
+          const response = await fetch(`${apiBase}/api/widget/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ bot_id: botId, visitor_id: visitorId, message }),
+          });
+
+          if (!response.ok) throw new Error("Request failed");
+          const data = await response.json();
+          const answer = data?.answer || "Sorry, something went wrong.";
+          appendMessage("bot", answer);
+        } catch (error) {
+          appendMessage("bot", "Sorry, something went wrong.");
+        }
+      }
+
+      chatForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const message = chatInput.value.trim();
+        if (!message || isSending) return;
+
+        appendMessage("user", message);
+        chatInput.value = "";
+        setLoading(true);
+        await sendMessage(message);
+        setLoading(false);
+      });
+
+      window.addEventListener("message", (event) => {
+        if (event.data && event.data.type === "CHATFUL_INIT") {
+          botId = event.data.botId || event.data.bot_id || null;
+          apiBase = event.data.apiBase || event.data.api_base || "";
+          applySettings(event.data.settings || {});
+        }
+      });
+
+      // Initialize with defaults for standalone viewing
+      applySettings(defaultSettings);
+    })();
+  </script>
+</body>
+</html>

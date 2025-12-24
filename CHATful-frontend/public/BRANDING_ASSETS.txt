@@ -1,0 +1,10 @@
+CHATful branding asset placeholders
+
+Add the following project-specific assets to public/ to match the metadata references in index.html:
+- favicon.ico (multi-size favicon)
+- chatful-favicon.svg (SVG favicon)
+- chatful-logo.png (512x512 logo for web app icon)
+- chatful-apple-touch-icon.png (180x180 for iOS)
+- chatful-og.png (1200x630 social share image)
+
+Once you add the files, the references in index.html will automatically pick them up.

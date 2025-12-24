@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>CHATful Widget</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg-card:#ffffff;
+      --bg-background:#ffffff;
+      --bg-secondary:#e2e8f0;
+      --border:#e2e8f0;
+      --muted:#64748b;
+      --text:#0f172a;
+      --primary:#3b82f6;
+      --accent:#3b82f6;
+      --primary-foreground:#ffffff;
+      --radius:16px;
+    }
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background:transparent; /* important to avoid white frame */
+      color:var(--text);
+    }
+
+    .chat-window{
+      width:100%;
+      height:100%;
+      background:var(--bg-card);
+      border-radius:var(--radius);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+    }
+
+    .header{
+      padding:16px;
+      color:var(--primary-foreground);
+      background:var(--primary);
+    }
+    .header-row{
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    .avatar{
+      width:40px;
+      height:40px;
+      border-radius:9999px;
+      background:rgba(255,255,255,.20);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      flex:none;
+    }
+    .title{
+      margin:0;
+      font-weight:600;
+      font-size:16px;
+      line-height:1.2;
+    }
+    .status{
+      margin:4px 0 0;
+      font-size:12px;
+      opacity:.80;
+    }
+
+    .body{
+      padding:16px;
+      min-height:200px;
+      flex:1;
+      background:var(--bg-background);
+      overflow:auto;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+
+    .bubble{
+      display:inline-block;
+      max-width:80%;
+      padding:12px;
+      border-radius:16px;
+      font-size:14px;
+      line-height:1.4;
+      word-break:break-word;
+    }
+    .bubble.bot{
+      background:var(--primary);
+      color:var(--primary-foreground);
+      border-bottom-left-radius:6px; /* rounded-bl-sm */
+      align-self:flex-start;
+    }
+    .bubble.user{
+      background:var(--bg-secondary);
+      color:var(--text);
+      border-bottom-right-radius:6px;
+      align-self:flex-end;
+    }
+
+    .footer{
+      padding:16px;
+      border-top:1px solid var(--border);
+      background:var(--bg-card);
+    }
+    .input-row{
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    .input{
+      flex:1;
+      padding:10px 16px;
+      border-radius:9999px;
+      border:none;
+      outline:none;
+      background:var(--bg-secondary);
+      font-size:14px;
+    }
+    .send{
+      width:40px;
+      height:40px;
+      border-radius:9999px;
+      border:none;
+      cursor:pointer;
+      background:var(--accent);
+      color:var(--primary-foreground);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      transition:filter 120ms ease, transform 120ms ease;
+    }
+    .send:hover{ filter:brightness(1.05); }
+    .send:active{ transform:scale(.98); }
+    .send:disabled{
+      opacity:.6;
+      cursor:not-allowed;
+      filter:none;
+      transform:none;
+    }
+    .powered{
+      margin:12px 0 0;
+      font-size:12px;
+      text-align:center;
+      color:var(--muted);
+    }
+    .powered strong{ font-weight:600; color:var(--muted); }
+
+    .hidden{ display:none !important; }
+    /* Loading (typing) bubble */
+.bubble.loading{
+  background: var(--bg-secondary);
+  color: var(--muted);
+  border-bottom-left-radius: 6px;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dots{
+  display:inline-flex;
+  gap:4px;
+}
+.dots span{
+  width:6px;
+  height:6px;
+  border-radius:9999px;
+  background: currentColor;
+  opacity:.35;
+  animation: dotPulse 1s infinite ease-in-out;
+}
+.dots span:nth-child(2){ animation-delay: .15s; }
+.dots span:nth-child(3){ animation-delay: .30s; }
+
+@keyframes dotPulse{
+  0%, 80%, 100% { transform: translateY(0); opacity: .35; }
+  40% { transform: translateY(-3px); opacity: .85; }
+}
+
+  </style>
+</head>
+<body>
+  <div class="chat-window" id="chat-window">
+    <div class="header" id="header">
+      <div class="header-row">
+        <div class="avatar" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path>
+          </svg>
+        </div>
+        <div>
+          <p class="title" id="chat-title">Support</p>
+          <p class="status">Online</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="body" id="chat-body"></div>
+
+    <div class="footer">
+      <form class="input-row" id="chat-form">
+        <input id="chat-input" class="input" type="text" placeholder="Type your message…" autocomplete="off" />
+        <button id="send-button" class="send" type="submit" aria-label="Send message">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+          </svg>
+        </button>
+      </form>
+      <p class="powered" id="powered-by">Powered by <strong>CHATful</strong></p>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const defaultSettings = {
+        display_name: "Support",
+        primary_color: "#3b82f6",
+        accent_color: "#3b82f6",
+        welcome_message: "Hi 👋 How can I help you?",
+        input_placeholder: "Type your message…",
+        show_powered_by: true,
+      };
+
+      let botId = null;
+      let apiBase = "";
+      let settings = { ...defaultSettings };
+      let isSending = false;
+      let loadingEl = null;
+
+
+      const chatBody = document.getElementById("chat-body");
+      const chatForm = document.getElementById("chat-form");
+      const chatInput = document.getElementById("chat-input");
+      const chatTitle = document.getElementById("chat-title");
+      const poweredBy = document.getElementById("powered-by");
+      const sendButton = document.getElementById("send-button");
+      const header = document.getElementById("header");
+      function showLoadingBubble() {
+        if (loadingEl) return;
+
+        loadingEl = document.createElement("div");
+        loadingEl.className = "bubble bot loading";
+        loadingEl.innerHTML = `
+          <span>Typing</span>
+          <span class="dots"><span></span><span></span><span></span></span>
+        `;
+        chatBody.appendChild(loadingEl);
+        chatBody.scrollTop = chatBody.scrollHeight;
+      }
+
+      function removeLoadingBubble() {
+        if (loadingEl) {
+          loadingEl.remove();
+          loadingEl = null;
+        }
+      }
+
+      function uuid() {
+        return (crypto.randomUUID && crypto.randomUUID()) ||
+          "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+            const r = Math.random() * 16 | 0;
+            const v = c === "x" ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+          });
+      }
+
+      function getVisitorId() {
+        const key = "chatful_visitor_id";
+        let id = localStorage.getItem(key);
+        if (!id) {
+          id = uuid();
+          localStorage.setItem(key, id);
+        }
+        return id;
+      }
+
+      function clearMessages() {
+        chatBody.innerHTML = "";
+      }
+
+      function appendMessage(kind, text) {
+        const bubble = document.createElement("div");
+        bubble.className = "bubble " + (kind === "user" ? "user" : "bot");
+        bubble.textContent = text;
+        chatBody.appendChild(bubble);
+        chatBody.scrollTop = chatBody.scrollHeight;
+      }
+
+      function setLoading(state) {
+        isSending = state;
+        sendButton.disabled = state;
+        chatInput.disabled = state;
+        if (state) showLoadingBubble();
+        else removeLoadingBubble();
+      }
+
+      function applySettings(newSettings) {
+        settings = { ...defaultSettings, ...newSettings };
+
+        document.documentElement.style.setProperty("--primary", settings.primary_color || defaultSettings.primary_color);
+        document.documentElement.style.setProperty("--accent", settings.accent_color || settings.primary_color || defaultSettings.accent_color);
+
+        header.style.background = settings.primary_color || defaultSettings.primary_color;
+        chatTitle.textContent = settings.display_name || defaultSettings.display_name;
+        chatInput.placeholder = settings.input_placeholder || defaultSettings.input_placeholder;
+
+        poweredBy.classList.toggle("hidden", !settings.show_powered_by);
+
+        clearMessages();
+        appendMessage("bot", settings.welcome_message || defaultSettings.welcome_message);
+      }
+
+      async function sendMessage(message) {
+        if (!botId || !apiBase) {
+          console.log(botId);
+          appendMessage("bot", "Sorry, something went wrong first.");
+          return;
+        }
+
+        const visitorId = getVisitorId();
+        try {
+          const response = await fetch(`${apiBase}/send-msg`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ bot_id: botId, visitor_id: visitorId, message }),
+          });
+
+          if (!response.ok) throw new Error("Request failed");
+          const data = await response.json();
+          removeLoadingBubble();
+          appendMessage("bot", data?.answer || "Sorry, something went wrong sending.");
+        } catch (e) {
+          removeLoadingBubble();
+          appendMessage("bot", "Sorry, something went wrong reciving.");
+        }
+      }
+
+      chatForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const message = chatInput.value.trim();
+        if (!message || isSending) return;
+
+        appendMessage("user", message);
+        chatInput.value = "";
+        setLoading(true);
+        await sendMessage(message);
+        setLoading(false);
+        chatInput.focus();
+      });
+
+      window.addEventListener("message", (event) => {
+        if (event.data && event.data.type === "CHATFUL_INIT") {
+          botId = event.data.botId || event.data.bot_id || null;
+          apiBase = event.data.apiBase || event.data.api_base || "";
+          applySettings(event.data.settings || {});
+        }
+      });
+
+      // standalone preview
+      applySettings(defaultSettings);
+    })();
+  </script>
+</body>
+</html>

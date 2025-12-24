@@ -1,0 +1,244 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --primary:#3b82f6;
+      --accent:#1e40af;
+      --bg:#ffffff;
+      --text:#0f172a;
+      --muted:#64748b;
+      --border:#e2e8f0;
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+    }
+    #app{ height:100vh; display:flex; flex-direction:column; }
+    header{
+      padding:12px 14px;
+      background: var(--primary);
+      color: #fff;
+      font-weight: 700;
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+    }
+    header small{
+      font-weight: 500;
+      opacity:.9;
+    }
+    #log{
+      flex:1;
+      overflow:auto;
+      padding: 12px;
+      background: #f8fafc;
+    }
+    .msg{
+      max-width: 85%;
+      padding: 10px 12px;
+      border-radius: 14px;
+      margin: 8px 0;
+      line-height: 1.35;
+      border: 1px solid var(--border);
+      background: #fff;
+      word-wrap: break-word;
+    }
+    .msg.user{
+      margin-left:auto;
+      background: var(--primary);
+      color:#fff;
+      border-color: transparent;
+    }
+    .msg.bot{
+      margin-right:auto;
+      background:#fff;
+      color: var(--text);
+    }
+    footer{
+      padding: 10px;
+      border-top: 1px solid var(--border);
+      background: #fff;
+      display:flex;
+      gap:8px;
+      align-items:center;
+    }
+    input{
+      flex:1;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      outline: none;
+      font-size: 14px;
+    }
+    input:focus{
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(30,64,175,.12);
+    }
+    button{
+      border: none;
+      border-radius: 12px;
+      padding: 10px 12px;
+      cursor: pointer;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+    }
+    button:disabled{
+      opacity:.6;
+      cursor:not-allowed;
+    }
+    #powered{
+      padding: 8px 12px;
+      text-align:center;
+      font-size: 12px;
+      color: var(--muted);
+      background:#fff;
+      border-top: 1px solid var(--border);
+      display:none;
+    }
+    #powered a{ color: var(--accent); text-decoration:none; }
+  </style>
+</head>
+
+<body>
+  <div id="app">
+    <header>
+      <div>
+        <div id="title">CHATful</div>
+        <small id="subtitle"></small>
+      </div>
+    </header>
+
+    <div id="log"></div>
+
+    <footer>
+      <input id="msg" placeholder="Type your message…" />
+      <button id="send">Send</button>
+    </footer>
+
+    <div id="powered">
+      Powered by <a href="#" target="_blank" rel="noreferrer">CHATful</a>
+    </div>
+  </div>
+
+  <script>
+    let BOT_ID = null;
+    let SETTINGS = null;
+    let API_BASE = null;
+
+    const logEl = document.getElementById("log");
+    const titleEl = document.getElementById("title");
+    const subtitleEl = document.getElementById("subtitle");
+    const msgEl = document.getElementById("msg");
+    const sendBtn = document.getElementById("send");
+    const poweredEl = document.getElementById("powered");
+
+    function getOrCreateVisitorId() {
+      const key = "chatful_visitor_id";
+      let id = localStorage.getItem(key);
+      if (!id) {
+        id = crypto.randomUUID();
+        localStorage.setItem(key, id);
+      }
+      return id;
+    }
+
+    function applySettings(s) {
+      document.documentElement.style.setProperty("--primary", s.primary_color || "#3b82f6");
+      document.documentElement.style.setProperty("--accent", s.accent_color || "#1e40af");
+
+      titleEl.textContent = s.display_name || "CHATful";
+      msgEl.placeholder = s.input_placeholder || "Type your message…";
+
+      if (s.show_powered_by) {
+        poweredEl.style.display = "block";
+      } else {
+        poweredEl.style.display = "none";
+      }
+
+      // welcome message
+      logEl.innerHTML = "";
+      addMsg("bot", s.welcome_message || "Hi 👋 How can I help you?");
+    }
+
+    function addMsg(role, text) {
+      const div = document.createElement("div");
+      div.className = "msg " + role;
+      div.textContent = text;
+      logEl.appendChild(div);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    async function callChatAPI(message) {
+      const visitor_id = getOrCreateVisitorId();
+
+      // عدّل المسار ده حسب endpoint بتاعك
+      const CHAT_ENDPOINT = `${API_BASE}/api/widget/chat`;
+
+      const res = await fetch(CHAT_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bot_id: BOT_ID,
+          visitor_id,
+          message
+        })
+      });
+
+      if (!res.ok) {
+        const t = await res.text().catch(() => "");
+        throw new Error(`chat failed: ${res.status} ${t}`);
+      }
+      return res.json();
+    }
+
+    async function send() {
+      if (!API_BASE || !BOT_ID || !SETTINGS) return;
+
+      const text = msgEl.value.trim();
+      if (!text) return;
+
+      msgEl.value = "";
+      sendBtn.disabled = true;
+
+      addMsg("user", text);
+
+      try {
+        const data = await callChatAPI(text);
+        addMsg("bot", data.answer || ""); // خلي endpoint يرجّع answer
+      } catch (e) {
+        addMsg("bot", "Sorry, something went wrong. Please try again.");
+        console.warn("[CHATful iframe]", e);
+      } finally {
+        sendBtn.disabled = false;
+        msgEl.focus();
+      }
+    }
+
+    sendBtn.addEventListener("click", send);
+    msgEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") send();
+    });
+
+    // Receive init from parent (widget.js)
+    window.addEventListener("message", (e) => {
+      const data = e.data;
+      if (!data || data.type !== "CHATFUL_INIT") return;
+
+      BOT_ID = data.botId;
+      SETTINGS = data.settings;
+      API_BASE = data.apiBase || window.location.origin;
+
+      subtitleEl.textContent = ""; // optional
+      applySettings(SETTINGS);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+import asyncio
+from src.celery_app import celery_app, beat_app
+from datetime import datetime, timezone
+from asgiref.sync import async_to_sync
+from sqlalchemy import update
+from src import load_models
+from src.billing.emails import Emails
+from src.billing.models import Subscription, SubscriptionStatus
+
+from src.database import get_sync_session
+
+
+email_service = Emails()
+
+@celery_app.task(name="send_subscription_email_task")
+def send_subscription_email_task(subscription: dict):
+    async_to_sync(email_service.send_subscription_email)(subscription)
+
+
+@celery_app.task(name="send_update_subscription_email_task")
+def send_update_subscription_email_task(subscription: dict):
+    async_to_sync(email_service.send_subscription_update_email)(subscription)
+
+
+@celery_app.task(name="send_cancel_subscription_email_task")
+def send_cancel_subscription_email_task(subscription: dict):
+    async_to_sync(email_service.send_cancel_subscription_email)(subscription)
+
+
+@celery_app.task(name="send_payment_failed_email_task")
+def send_payment_failed_email_task(subscription: dict):
+    async_to_sync(email_service.send_payment_failed_email)(subscription)
+
+@beat_app.task(name="expire_subscriptions_task")
+def expire_subscriptions_task():
+    # Will be implemented for credits in subs later
+    pass
+    # db = get_sync_session()
+
+    # now = datetime.now(timezone.utc)
+
+
+    # db.execute(
+    #     update(Subscription)
+    #     .where(Subscription.current_period_end <= now)
+    #     .where(Subscription.status != SubscriptionStatus.CANCELED)
+    #     .values(status=SubscriptionStatus.CANCELED)
+    # )
+
+    # db.commit()
+    # db.close()
+

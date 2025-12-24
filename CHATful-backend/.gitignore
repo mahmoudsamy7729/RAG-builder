@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.sqlite3
+*.db
+
+# Env
+.env
+
+
+# Virtual env
+venv/
+.envs/
+.venv/
+
+
+# Log files
+logs/
+log/
+*.log
+*.log*
+
+
+
+# IDE
+.vscode/
+.idea/
+
+# __pycache__
+**/__pycache__/
+
+
+
+celerybeat-schedule
+celerybeat.pid
