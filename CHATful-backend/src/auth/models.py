@@ -23,7 +23,7 @@ class User(Base):
     password: Mapped[str] = mapped_column(String(255), nullable=True) #nullable true for social login 
     is_admin: Mapped[bool] = mapped_column(Boolean(), default=False)
     is_active: Mapped[bool] = mapped_column(Boolean(), default=True) 
-    is_verified: Mapped[bool] = mapped_column(Boolean(), default=False) 
+    is_verified: Mapped[bool] = mapped_column(Boolean(), default=True) 
     stripe_customer_id: Mapped[str] = mapped_column(String(), nullable=True)
     provider: Mapped[Provider] = mapped_column(SAENUM(Provider), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
