@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { Helmet } from "react-helmet-async";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { api } from "@/lib/api";
+import { Chatbot, ChatbotStatus } from "@/types/chatbot";
 
 type WidgetPosition = "bottom-left" | "bottom-right";
 
@@ -55,6 +56,7 @@ const WidgetBuilder = () => {
   const { id } = useParams();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [chatbotStatus, setChatbotStatus] = useState<ChatbotStatus | null>(null);
 
   const [config, setConfig] = useState<WidgetConfig>({ ...DEFAULT_WIDGET_CONFIG });
 
@@ -99,8 +101,45 @@ const WidgetBuilder = () => {
     };
   }, [id]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchChatbotStatus = async () => {
+      if (!id) {
+        return;
+      }
+
+      const result = await api.get<Chatbot[]>("/my-bots");
+
+      if (!isMounted) return;
+
+      if (result.data) {
+        const bot = result.data.find((item) => item.id === id);
+
+        if (!bot) {
+          toast.error("Chatbot not found.");
+          return;
+        }
+
+        setChatbotStatus(bot.status);
+      } else if (result.error) {
+        toast.error(result.error);
+      }
+    };
+
+    fetchChatbotStatus();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id]);
+
   const updateConfig = <K extends keyof typeof config>(key: K, value: typeof config[K]) => {
     setConfig(prev => ({ ...prev, [key]: value }));
+  };
+
+  const showInactiveToast = () => {
+    toast.info("Chatbot should be active before you can get the embed script.");
   };
 
   const handleSave = async () => {
@@ -131,16 +170,21 @@ const WidgetBuilder = () => {
 
       const embedLink = `${window.location.origin}/dashboard/chatbots/${id}/embed`;
 
-      toast.success("Widget settings saved", {
-        description: "Your widget has been updated.",
-        action: {
-          label: "Copy embed link",
-          onClick: async () => {
-            await navigator.clipboard.writeText(embedLink);
-            toast.success("Embed link copied");
-          },
-        },
-      });
+      toast.success(
+        "Widget settings saved",
+        chatbotStatus === "active"
+          ? {
+              description: "Your widget has been updated.",
+              action: {
+                label: "Copy embed link",
+                onClick: async () => {
+                  await navigator.clipboard.writeText(embedLink);
+                  toast.success("Embed link copied");
+                },
+              },
+            }
+          : { description: "Your widget has been updated." }
+      );
     } else if (result.error) {
       toast.error(result.error);
     }
@@ -161,11 +205,17 @@ const WidgetBuilder = () => {
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-semibold">Widget Settings</h2>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" asChild>
-                  <Link to={`/dashboard/chatbots/${id}/embed`}>
+                {chatbotStatus === "active" ? (
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to={`/dashboard/chatbots/${id}/embed`}>
+                      Get Embed Code
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={showInactiveToast}>
                     Get Embed Code
-                  </Link>
-                </Button>
+                  </Button>
+                )}
                 <Button size="sm" onClick={handleSave} disabled={isSaving || isLoading}>
                   {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 </Button>
