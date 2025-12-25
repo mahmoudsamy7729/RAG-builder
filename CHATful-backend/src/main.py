@@ -1,4 +1,5 @@
 import time
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
@@ -14,16 +15,33 @@ from src.auth.router import router as auth_router
 from src.billing.router import router as billing_router
 from src.chahtbot.router import router as chatbot_router
 from src.exceptions import validation_exception_handler
+from src.database import engine
+from redis.asyncio import Redis
+from src.config import settings
 
 
 
 setup_logging()
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.redis = Redis.from_url(
+        settings.redis_url,
+        decode_responses=True,
+    )
+
+    yield
+    
+    await app.state.redis.close()
+    await engine.dispose()
+
+app = FastAPI(lifespan=lifespan)
 
 app.state.limiter = limiter
 
 app.add_middleware(SlowAPIMiddleware)
+
+
 
 
 

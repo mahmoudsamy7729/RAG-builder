@@ -1,7 +1,7 @@
 from uuid import uuid4, UUID as PyUUID
 from datetime import datetime, timezone
 from enum import Enum
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy import String, ForeignKey, DateTime, Enum as SAEnum, Text, Boolean
 from sqlalchemy.orm import mapped_column, Mapped, relationship
 from src.database import Base
@@ -27,6 +27,8 @@ class Chatbot(Base):
     name: Mapped[str] = mapped_column(String(), nullable=False)
     description: Mapped[str] = mapped_column(String(), nullable=True)
     status: Mapped[BotStatus] = mapped_column(SAEnum(BotStatus), default=BotStatus.PENDING)
+
+    allowed_hosts: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=lambda: ["*"], server_default='["*"]')
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), 
                                     default=lambda: datetime.now(timezone.utc))

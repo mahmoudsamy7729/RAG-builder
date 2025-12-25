@@ -1,5 +1,6 @@
 from uuid import UUID
-from fastapi import APIRouter, UploadFile, File, Form, Depends, status, Header, HTTPException, Request
+from fastapi import APIRouter, UploadFile, File, Form, Depends, status, Header, Request
+from src.dependencies import redis_dependency
 from src.rate_limiter import limiter
 from src.auth_bearer import user_dependency
 from src.database import db_dependency
@@ -19,13 +20,25 @@ router = APIRouter()
 def chatbot_form(
     name: str = Form(...),
     description: str | None = Form(None),
+    allowed_hosts: str | None = Form(None),
 ):
-    return schemas.ChatbotCreateRequest(name=name, description=description)
+    hosts_list: list[str] = ["*"]
+
+    if allowed_hosts and allowed_hosts.strip():
+        raw = allowed_hosts.replace(",", "\n")
+        hosts_list = [h.strip() for h in raw.splitlines() if h.strip()]
+
+    return schemas.ChatbotCreateRequest(
+        name=name,
+        description=description,
+        allowed_hosts=hosts_list,
+    )
 
 
 @router.post("/send-msg")
-async def send_chat_message(data: schemas.MessageRequest):
-    status, msg = await ChatbotService.send_msg(data)
+async def send_chat_message(data: schemas.MessageRequest, chat_repo: chatbot_dependency,
+        request: Request, redis: redis_dependency):
+    status, msg = await ChatbotService.send_msg(data, chat_repo, request, redis)
     return {
             "status_code": status,
 
@@ -36,9 +49,9 @@ async def send_chat_message(data: schemas.MessageRequest):
 
 
 @router.post("/chatbots", status_code=status.HTTP_201_CREATED)
-async def create_chatbot(chat_repo: chatbot_dependency, current_user: user_dependency, widget_repo: bot_widget_dependency,
+async def create_chatbot(chat_repo: chatbot_dependency, current_user: user_dependency,
     data: schemas.ChatbotCreateRequest = Depends(chatbot_form), file: UploadFile = File(...)):
-    bot= await ChatbotService.create_chatbot(data, file, chat_repo, widget_repo, current_user)
+    bot= await ChatbotService.create_chatbot(data, file, chat_repo, current_user)
     return {"id": bot.id}
 
 

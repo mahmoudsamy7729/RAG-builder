@@ -10,6 +10,13 @@ class ChatbotRepository:
         self.db = db
 
 
+    async def get_chatbot_by_id(self, bot_id: UUID) -> Chatbot:
+        result = await self.db.execute(
+            select(Chatbot).where(Chatbot.id == bot_id)
+        )
+        return result.scalar_one_or_none()
+
+
     async def my_bots(self, user_id: UUID) -> list[Chatbot]:
         stmt = (
             select(Chatbot)
@@ -20,11 +27,13 @@ class ChatbotRepository:
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
+
     async def create_chatbot(self, *, user_id: UUID, data, filename) -> Chatbot:
         bot = Chatbot(
             user_id=user_id,
             name=data.name,
-            description=data.description
+            description=data.description,
+            allowed_hosts=data.allowed_hosts,
         )
         self.db.add(bot)
         await self.db.flush()

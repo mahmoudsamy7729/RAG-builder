@@ -3,12 +3,11 @@ from uuid import UUID
 import fitz
 import pymupdf4llm
 from io import BytesIO
-from fastapi import HTTPException, status, File
+from fastapi import HTTPException, status
 from fastapi.concurrency import run_in_threadpool
-from sqlalchemy.ext.asyncio import AsyncSession
 from src.config import settings
 from src.chahtbot.repository import KnowledgebaseRepository, ChatbotRepository, BotWidgetRepository
-from src.chahtbot.utils import N8N
+from src.chahtbot.utils import N8N, ChatbotUtils
 from src.auth.models import User
 from src.chahtbot.models import BotStatus
 
@@ -53,7 +52,7 @@ class ChatbotService:
 
 
     @staticmethod
-    async def create_chatbot(data, file, bot_repo: ChatbotRepository, widget_repo: BotWidgetRepository ,user: User):
+    async def create_chatbot(data, file, bot_repo: ChatbotRepository, user: User):
 
         file_bytes = await file.read()
 
@@ -68,11 +67,14 @@ class ChatbotService:
 
         await N8N.send_file_to_n8n(file, file_bytes, user.id, bot.id)
 
+
         return bot
 
         
     @staticmethod
-    async def send_msg(data):
+    async def send_msg(data, bot_repo: ChatbotRepository, request, redis):        
+        settings = await ChatbotUtils.get_chatbot_settings_cached(data.bot_id, bot_repo, redis)
+        ChatbotUtils.ensure_origin_allowed(ChatbotUtils.extract_origin(request), settings["allowed_hosts"])
         status, msg = await N8N.send_msg_to_n8n(data.message, data.bot_id)
         return status, msg
 

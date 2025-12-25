@@ -1,34 +1,37 @@
-﻿# Chatbot API
+# Chatbot API
 
-All authenticated endpoints require HTTP Bearer tokens in `Authorization: Bearer <token>`. Authentication raises 401 for invalid/expired tokens and 403 if the user is not active/verified.
+All authenticated endpoints require HTTP Bearer auth using `Authorization: Bearer <token>`.
 
 ## POST /send-msg
-- Summary: Send a chat message to the chatbot service.
-- Auth required: Yes
+- Summary: Send a chat message to a chatbot and get a reply.
+- Auth required: No
 - Query params: None
 - Path params: None
-- Required headers: Authorization (Bearer token), Content-Type: application/json
-- JSON request body: message (string, required)
-- Responses:
-  - 200: {"status_code": <int>, "message": <string>}
-  - 401: Invalid or expired token
-  - 403: User account not active/verified
+- Required headers: None
+- JSON request body fields:
+  - message (string, required)
+  - bot_id (UUID, required)
+  - visitor_id (UUID, required)
+- JSON response fields and status codes:
+  - 200: {"status_code": int, "answer": string}
 
 ## POST /chatbots
-- Summary: Create a chatbot with an initial PDF knowledge base file.
+- Summary: Create a chatbot with an initial PDF knowledge base upload.
 - Auth required: Yes
 - Query params: None
 - Path params: None
 - Required headers: Authorization (Bearer token), Content-Type: multipart/form-data
-- Request body (multipart/form-data):
+- JSON request body fields: None (multipart/form-data)
+- Multipart form fields:
   - name (string, required; 3-100 chars)
   - description (string, optional; up to 500 chars)
-  - file (UploadFile, required; PDF only, max 10 MB)
-- Responses:
-  - 201: ["done"] (set serialized to list)
-  - 400: Unsupported file type or file too large
-  - 401: Invalid or expired token
-  - 403: User account not active/verified
+  - allowed_hosts (string, optional; comma- or newline-separated origins; "*" allowed)
+  - file (file, required; PDF only; max 10 MB)
+- JSON response fields and status codes:
+  - 201: {"id": UUID}
+  - 400: {"detail": "Unsupported file type" | "File too large"}
+  - 401: {"detail": "Invalid or expired token"}
+  - 403: {"detail": "User account is not active or verified"}
 
 ## GET /my-bots
 - Summary: List chatbots owned by the current user.
@@ -36,34 +39,39 @@ All authenticated endpoints require HTTP Bearer tokens in `Authorization: Bearer
 - Query params: None
 - Path params: None
 - Required headers: Authorization (Bearer token)
-- JSON response (200): list of bots
-  - Each item: {id: UUID, name: string, status: "active" | "archived"}
-- Error responses: 401 (invalid token), 403 (user not active/verified)
+- JSON request body fields: None
+- JSON response fields and status codes:
+  - 200: list of bots
+    - Each item: {"id": UUID, "name": string, "status": "active" | "archived" | "pending" | "failed"}
+  - 401: {"detail": "Invalid or expired token"}
+  - 403: {"detail": "User account is not active or verified"}
 
 ## POST /knowledge_base/upload
-- Summary: Upload a knowledge base file for the user.
+- Summary: Upload a knowledge base PDF for the authenticated user.
 - Auth required: Yes
 - Query params: None
 - Path params: None
 - Required headers: Authorization (Bearer token), Content-Type: multipart/form-data
-- Request body (multipart/form-data):
-  - file (UploadFile, required)
-- Responses:
-  - 200: Empty body (current implementation returns None)
-  - 401: Invalid or expired token
-  - 403: User account not active/verified
+- JSON request body fields: None (multipart/form-data)
+- Multipart form fields:
+  - file (file, required)
+- JSON response fields and status codes:
+  - 200: empty body (no JSON fields in current implementation)
+  - 401: {"detail": "Invalid or expired token"}
+  - 403: {"detail": "User account is not active or verified"}
 
 ## DELETE /knowledge_base/delete/{file_id}
-- Summary: Archive/delete a knowledge base file by ID.
+- Summary: Archive a knowledge base file by ID.
 - Auth required: Yes
 - Query params: None
 - Path params:
   - file_id (UUID, required)
 - Required headers: Authorization (Bearer token)
-- Responses:
+- JSON request body fields: None
+- JSON response fields and status codes:
   - 204: No content
-  - 403: Deletion forbidden when the file is not owned by the user (or user not active/verified)
-  - 401: Invalid or expired token
+  - 401: {"detail": "Invalid or expired token"}
+  - 403: {"detail": "You can't delete this file"}
 
 ## GET /widget/config/{bot_id}
 - Summary: Retrieve public widget configuration for a bot.
@@ -72,9 +80,10 @@ All authenticated endpoints require HTTP Bearer tokens in `Authorization: Bearer
 - Path params:
   - bot_id (UUID, required)
 - Required headers: None
-- JSON response (200): Widget settings
-  - {bot_id: UUID, display_name: string, primary_color: string, accent_color: string, position: "bottom-left" | "bottom-right", welcome_message: string, input_placeholder: string, show_powered_by: boolean}
-- Error responses: 404 (no widget found for bot)
+- JSON request body fields: None
+- JSON response fields and status codes:
+  - 200: {"bot_id": UUID, "display_name": string, "primary_color": string, "accent_color": string, "position": "bottom-left" | "bottom-right", "welcome_message": string, "input_placeholder": string, "show_powered_by": boolean}
+  - 404: {"detail": "No Widget Found for this bot"}
 
 ## PUT /{bot_id}/widget-settings
 - Summary: Create or update widget settings for a bot owned by the current user.
@@ -83,15 +92,41 @@ All authenticated endpoints require HTTP Bearer tokens in `Authorization: Bearer
 - Path params:
   - bot_id (UUID, required)
 - Required headers: Authorization (Bearer token), Content-Type: application/json
-- JSON request body:
+- JSON request body fields:
   - display_name (string, required; 1-100 chars)
-  - primary_color (string, optional; default "#3b82f6")
-  - accent_color (string, optional; default "#1e40af")
-  - position ("bottom-left" | "bottom-right", optional; default "bottom-right")
-  - welcome_message (string, optional; default "Hi dY`< How can I help you?")
-  - input_placeholder (string, optional; default "Type your message\u0192?\u0130" — literal non-ASCII characters)
-  - show_powered_by (boolean, optional; default true)
-- JSON response (200): Updated settings with bot_id
-  - {bot_id: UUID, display_name: string, primary_color: string, accent_color: string, position: "bottom-left" | "bottom-right", welcome_message: string, input_placeholder: string, show_powered_by: boolean}
-- Error responses: 404 (bot not found for user), 401 (invalid token), 403 (user not active/verified)
+  - primary_color (string, optional)
+  - accent_color (string, optional)
+  - position ("bottom-left" | "bottom-right", optional)
+  - welcome_message (string, optional; default value in schema)
+  - input_placeholder (string, optional; default value in schema)
+  - show_powered_by (boolean, optional)
+- JSON response fields and status codes:
+  - 200: {"bot_id": UUID, "display_name": string, "primary_color": string, "accent_color": string, "position": "bottom-left" | "bottom-right", "welcome_message": string, "input_placeholder": string, "show_powered_by": boolean}
+  - 401: {"detail": "Invalid or expired token"}
+  - 403: {"detail": "User account is not active or verified"}
+  - 404: {"detail": "Bot not found"}
 
+## POST /chatbot/pdf/to/md
+- Summary: Convert a PDF file to Markdown.
+- Auth required: No
+- Query params: None
+- Path params: None
+- Required headers: Content-Type: multipart/form-data
+- JSON request body fields: None (multipart/form-data)
+- Multipart form fields:
+  - file (file, required; PDF)
+- JSON response fields and status codes:
+  - 200: {"markdown": string}
+
+## POST /chatbot-status
+- Summary: Webhook endpoint for chatbot ingestion status updates.
+- Auth required: No
+- Query params: None
+- Path params: None
+- Required headers: x-n8n-signature (string)
+- JSON request body fields:
+  - bot_id (UUID, required)
+  - type (string, required; expected: "chatbot.ingestion.completed" or "chatbot.ingestion.failed")
+- JSON response fields and status codes:
+  - 200: empty body (no JSON fields in current implementation)
+  - 401: {"detail": "Invalid or expired token"} (only if downstream auth is added)
