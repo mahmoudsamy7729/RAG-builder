@@ -1,7 +1,44 @@
 import httpx, hmac, hashlib, json
-from fastapi import status, HTTPException
+from uuid import UUID
+from fastapi import status, HTTPException, Request
 from src.config import settings
 
+
+
+class ChatbotUtils:
+    @staticmethod
+    async def get_chatbot_settings_cached(bot_id: UUID, bot_repo, redis):
+        key = f"chatbot:settings:{bot_id}"
+        cached = await redis.get(key)
+        if cached:
+            print ("Cache hit for chatbot settings")
+            return json.loads(cached)
+        chatbot =  await bot_repo.get_chatbot_by_id(bot_id)
+        settings = {
+            "allowed_hosts": chatbot.allowed_hosts
+        }
+        await redis.set(key, json.dumps(settings), ex=600)  # Cache for 10 minutes
+        print ("Cache miss for chatbot settings")
+        return settings
+
+
+    @staticmethod
+    def extract_origin(request: Request) -> str | None:
+        return request.headers.get("origin") or request.headers.get("referer")
+    
+
+    @staticmethod
+    def ensure_origin_allowed(origin: str | None, allowed_hosts: list[str]):
+        if "*" in allowed_hosts:
+            return
+        
+        if origin in allowed_hosts:
+            return
+        
+        if origin not in allowed_hosts:
+            raise HTTPException(status_code=403, detail="Domain not allowed")
+        
+        
 
 
 
