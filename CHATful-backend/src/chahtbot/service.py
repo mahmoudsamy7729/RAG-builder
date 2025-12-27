@@ -3,7 +3,7 @@ from uuid import UUID
 import fitz
 import pymupdf4llm
 from io import BytesIO
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from src.config import settings
 from src.chahtbot.repository import KnowledgebaseRepository, ChatbotRepository, BotWidgetRepository
@@ -52,20 +52,42 @@ class ChatbotService:
 
 
     @staticmethod
-    async def create_chatbot(data, file, bot_repo: ChatbotRepository, user: User):
+    async def create_chatbot(data, file: UploadFile | None, bot_repo: ChatbotRepository, user: User):
 
-        file_bytes = await file.read()
+        bot = await bot_repo.create_chatbot(
+            user_id=user.id,
+            data=data,
+            filename=(file.filename if file else None),
+        )
 
-        if file.content_type not in ALLOWED_TYPES:
-            raise HTTPException(status_code=400, detail="Unsupported file type")
+        # Route ingestion
+        if data.source_type == "file":
+            if not file:
+                raise HTTPException(status_code=400, detail="file is required when source_type=file")
 
-        if len(file_bytes) > MAX_FILE_SIZE:
-            raise HTTPException(status_code=400, detail="File too large")
+            file_bytes = await file.read()
+            if file.content_type not in ALLOWED_TYPES:
+                raise HTTPException(status_code=400, detail="Unsupported file type")
+            
+            if len(file_bytes) > MAX_FILE_SIZE:
+                raise HTTPException(status_code=400, detail="File too large")
+            
+            await N8N.send_to_n8n(
+                source_type="file",
+                user_id=user.id,
+                bot_id=bot.id,
+                file=file,
+                file_bytes=file_bytes,
+            )
 
+        elif data.source_type in {"webpage", "website"}:
+            await N8N.send_to_n8n(
+                source_type=data.source_type,
+                user_id=user.id,
+                bot_id=bot.id,
+                url=data.url,   # required already by validation
+            )
 
-        bot = await bot_repo.create_chatbot(user_id=user.id, data=data, filename=file.filename)
-
-        await N8N.send_file_to_n8n(file, file_bytes, user.id, bot.id)
 
 
         return bot

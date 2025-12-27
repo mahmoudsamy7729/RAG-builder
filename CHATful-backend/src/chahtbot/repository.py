@@ -39,14 +39,14 @@ class ChatbotRepository:
         await self.db.flush()
         await self.db.refresh(bot)
 
-        kb = KnowledgeBase(
-            user_id=user_id,
-            bot_id=bot.id,
-            filename=filename,
-        )
-        self.db.add(kb)
-        await self.db.flush()     
-        await self.db.refresh(kb) 
+        # kb = KnowledgeBase(
+        #     user_id=user_id,
+        #     bot_id=bot.id,
+        #     filename=filename,
+        # )
+        # self.db.add(kb)
+        # await self.db.flush()     
+        # await self.db.refresh(kb) 
 
         settings = BotWidgetSettings(bot_id=bot.id)
         await self.db.flush() 

@@ -11,6 +11,47 @@ Position = Literal["bottom-left", "bottom-right"]
 class ChatbotCreateRequest(BaseModel):
     name: str = Field(..., min_length=3, max_length=100)
     description: Optional[str] = Field(None, max_length=500)
+    source_type: Literal["file", "webpage", "website"] = Field(default="file")
+    url: Optional[str] = None
+
+    allowed_hosts: List[str] = Field(
+        default_factory=lambda: ["*"],
+        description="List of allowed origins. Use ['*'] to allow all."
+    )
+
+    
+
+    @field_validator("allowed_hosts")
+    @classmethod
+    def validate_allowed_hosts(cls, hosts: List[str]) -> List[str]:
+        # Empty list is not allowed (security)
+        if not hosts:
+            raise ValueError("allowed_hosts cannot be empty")
+
+        # If '*' exists, it must be the only value
+        if "*" in hosts and len(hosts) > 1:
+            raise ValueError("'*' must be the only value in allowed_hosts")
+
+        normalized: list[str] = []
+
+        for host in hosts:
+            if host == "*":
+                return ["*"]
+
+            parsed = urlparse(host)
+
+            if not parsed.scheme or not parsed.netloc:
+                raise ValueError(
+                    f"Invalid host '{host}'. Must be full origin like https://example.com"
+                )
+
+            if parsed.scheme not in ("http", "https"):
+                raise ValueError("Only http and https schemes are allowed")
+
+            # normalize (remove trailing slash)
+            normalized.append(f"{parsed.scheme}://{parsed.netloc}")
+
+        return normalized
 
     allowed_hosts: List[str] = Field(
         default_factory=lambda: ["*"],
