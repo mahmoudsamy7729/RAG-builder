@@ -1,6 +1,6 @@
 import httpx, hmac, hashlib, json
 from uuid import UUID
-from fastapi import status, HTTPException, Request
+from fastapi import status, HTTPException, Request, UploadFile
 from src.config import settings
 
 
@@ -57,40 +57,62 @@ class N8N:
 
 
     @staticmethod
-    async def send_file_to_n8n(file, file_bytes, user_id, bot_id):
-        filename = file.filename
-        content_type = file.content_type
+    async def send_to_n8n(
+        *,
+        source_type: str,
+        user_id,
+        bot_id,
+        url: str | None = None,
+        file: UploadFile | None = None,
+        file_bytes: bytes | None = None,
+    ):
+        
+        # This is the important part: consistent fields for n8n routing
+        data = {
+            "user_id": str(user_id),
+            "bot_id": str(bot_id),
+            "source_type": source_type,  # "file" | "webpage" | "website"
+        }
 
-        files = {"Upload_PDF": (filename, file_bytes, content_type)}
-        data = {"user_id": str(user_id), "filename": filename, "bot_id": str(bot_id)}
+        files = None
+
+        if source_type == "file":
+            if not file or file_bytes is None:
+                raise HTTPException(status_code=400, detail="file upload missing")
+
+            data["filename"] = file.filename
+            data["content_type"] = file.content_type
+
+            files = {"Upload_PDF": (file.filename, file_bytes, file.content_type)}
+
+        else:
+            # webpage / website
+            if not url:
+                raise HTTPException(status_code=400, detail="url missing")
+            data["url"] = url
 
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(settings.n8n_webhook_knowledgebase, files=files, data=data)
-                response.raise_for_status()
+                resp = await client.post(
+                    settings.n8n_webhook_knowledgebase,
+                    data=data,
+                    files=files,   # None for urls, multipart for file
+                )
+                resp.raise_for_status()
 
-        except httpx.ConnectError as e:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="n8n service is unreachable",
-            )
-
+        except httpx.ConnectError:
+            raise HTTPException(status_code=502, detail="n8n service is unreachable")
         except httpx.TimeoutException:
-            raise HTTPException(
-                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                detail="n8n request timed out",
-            )
-
+            raise HTTPException(status_code=504, detail="n8n request timed out")
         except httpx.HTTPStatusError as e:
             raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
+                status_code=502,
                 detail=f"n8n error: {e.response.status_code} - {e.response.text}",
             )
-
-        except Exception as e:
+        except Exception:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Unexpected error while sending file to n8n",
+                status_code=500,
+                detail="Unexpected error while sending to n8n",
             )
 
 

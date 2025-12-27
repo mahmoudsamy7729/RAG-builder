@@ -11,11 +11,15 @@ Position = Literal["bottom-left", "bottom-right"]
 class ChatbotCreateRequest(BaseModel):
     name: str = Field(..., min_length=3, max_length=100)
     description: Optional[str] = Field(None, max_length=500)
+    source_type: Literal["file", "webpage", "website"] = Field(default="file")
+    url: Optional[str] = None
 
     allowed_hosts: List[str] = Field(
         default_factory=lambda: ["*"],
         description="List of allowed origins. Use ['*'] to allow all."
     )
+
+    
 
     @field_validator("allowed_hosts")
     @classmethod
