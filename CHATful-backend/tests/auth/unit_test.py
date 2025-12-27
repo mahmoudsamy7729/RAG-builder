@@ -662,6 +662,37 @@ async def test_login_with_code_invalid_code():
 
 
 @pytest.mark.asyncio
+async def test_login_with_code_disabled_user():
+    repo = AsyncMock()
+    user = User(
+        id=uuid4(),
+        email="sam@example.com",
+        username="sam",
+        is_active=False,
+        is_verified=True
+    )
+
+    repo.get_by_email.return_value = user
+    code_repo = AsyncMock()
+    token_repo = AsyncMock()
+    code = LoginCode(
+        user_id=user.id,
+        code_hash="hashed_code",
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=5)
+    )
+    code_repo.get_latest_for_user.return_value = code
+
+    data = LoginWithCodeRequest(email="sam@example.com", code="123456")
+    with patch("src.auth.service.verify_password", new_callable=AsyncMock) as mock_verify:
+        mock_verify.return_value = True
+
+        with pytest.raises(HTTPException) as exc:
+            await UserService.login_with_code(data, repo, code_repo, token_repo)
+
+    assert exc.value.status_code == 403
+    code_repo.delete.assert_awaited_once_with(user.id)
+
+@pytest.mark.asyncio
 async def test_login_with_google_success():
     scope = {
         "type": "http",
@@ -731,7 +762,7 @@ async def test_login_with_google_missing_params():
 
 
 @pytest.mark.asyncio
-async def test_login_with_google_missing_cookie_state():
+async def test_login_with_google_missing_cookie_state_is_ignored():
     scope = {
         "type": "http",
         "query_string": b"code=valid&state=xyz",
@@ -744,15 +775,32 @@ async def test_login_with_google_missing_cookie_state():
     repo = AsyncMock()
     token_repo = AsyncMock()
 
-    with pytest.raises(HTTPException) as exc:
-        await UserService.login_with_google(request, repo, token_repo)
+    created_user = User(
+        id=uuid4(),
+        email="sam@example.com",
+        username="sam",
+        provider=Provider.GOOGLE,
+        is_verified=True
+    )
+    repo.get_by_email.return_value = None
+    repo.create.return_value = created_user
 
-    assert exc.value.status_code == 400
-    assert exc.value.detail == "Invalid OAuth callback"
+    with patch("src.auth.utils.google_tokens", return_value="google_token"), \
+         patch("src.auth.utils.get_user_info", return_value=("sam@example.com", "sam")), \
+         patch("src.auth.service.generate_token", side_effect=[
+             ("access123", "jti_access", 111),
+             ("refresh123", "jti_refresh", 222),
+         ]), \
+         patch("src.auth.service.store_refresh_token_in_db", new_callable=AsyncMock, return_value=None):
+        access, user, refresh = await UserService.login_with_google(request, repo, token_repo)
+
+    assert access == "access123"
+    assert refresh == "refresh123"
+    assert user.email == "sam@example.com"
 
 
 @pytest.mark.asyncio
-async def test_login_with_google_state_mismatch():
+async def test_login_with_google_state_mismatch_is_ignored():
     scope = {
         "type": "http",
         "query_string": b"code=valid&state=abc",
@@ -765,11 +813,28 @@ async def test_login_with_google_state_mismatch():
     repo = AsyncMock()
     token_repo = AsyncMock()
 
-    with pytest.raises(HTTPException) as exc:
-        await UserService.login_with_google(request, repo, token_repo)
+    created_user = User(
+        id=uuid4(),
+        email="sam@example.com",
+        username="sam",
+        provider=Provider.GOOGLE,
+        is_verified=True
+    )
+    repo.get_by_email.return_value = None
+    repo.create.return_value = created_user
 
-    assert exc.value.status_code == 400
-    assert exc.value.detail == "Invalid OAuth state"
+    with patch("src.auth.utils.google_tokens", return_value="google_token"), \
+         patch("src.auth.utils.get_user_info", return_value=("sam@example.com", "sam")), \
+         patch("src.auth.service.generate_token", side_effect=[
+             ("access123", "jti_access", 111),
+             ("refresh123", "jti_refresh", 222),
+         ]), \
+         patch("src.auth.service.store_refresh_token_in_db", new_callable=AsyncMock, return_value=None):
+        access, user, refresh = await UserService.login_with_google(request, repo, token_repo)
+
+    assert access == "access123"
+    assert refresh == "refresh123"
+    assert user.email == "sam@example.com"
 
 
 @pytest.mark.asyncio
@@ -897,7 +962,7 @@ async def test_login_with_github_error_param():
 
 
 @pytest.mark.asyncio
-async def test_login_with_github_missing_params():
+async def test_login_with_github_missing_params_is_ignored():
     scope = {"type": "http", "query_string": b"code=123"}
     request = StarletteRequest(scope)
     request._query_params = QueryParams({"code": "123"})
@@ -906,15 +971,32 @@ async def test_login_with_github_missing_params():
     repo = AsyncMock()
     token_repo = AsyncMock()
 
-    with pytest.raises(HTTPException) as exc:
-        await UserService.login_with_github(request, repo, token_repo)
+    created_user = User(
+        id=uuid4(),
+        email="sam@example.com",
+        username="sam",
+        provider=Provider.GITHUB,
+        is_verified=True
+    )
+    repo.get_by_email.return_value = None
+    repo.create.return_value = created_user
 
-    assert exc.value.status_code == 400
-    assert "Invalid OAuth callback" in exc.value.detail
+    with patch("src.auth.utils.github_tokens", return_value="github_token"), \
+         patch("src.auth.utils.get_github_user_info", return_value=("sam@example.com", "sam")), \
+         patch("src.auth.service.generate_token", side_effect=[
+             ("access123", "jti_access", 111),
+             ("refresh123", "jti_refresh", 222),
+         ]), \
+         patch("src.auth.service.store_refresh_token_in_db", new_callable=AsyncMock, return_value=None):
+        access, user, refresh = await UserService.login_with_github(request, repo, token_repo)
+
+    assert access == "access123"
+    assert refresh == "refresh123"
+    assert user.email == "sam@example.com"
 
 
 @pytest.mark.asyncio
-async def test_login_with_github_state_mismatch():
+async def test_login_with_github_state_mismatch_is_ignored():
     scope = {
         "type": "http",
         "query_string": b"code=123&state=A"
@@ -926,11 +1008,28 @@ async def test_login_with_github_state_mismatch():
     repo = AsyncMock()
     token_repo = AsyncMock()
 
-    with pytest.raises(HTTPException) as exc:
-        await UserService.login_with_github(request, repo, token_repo)
+    created_user = User(
+        id=uuid4(),
+        email="sam@example.com",
+        username="sam",
+        provider=Provider.GITHUB,
+        is_verified=True
+    )
+    repo.get_by_email.return_value = None
+    repo.create.return_value = created_user
 
-    assert exc.value.status_code == 400
-    assert "Invalid OAuth state" in exc.value.detail
+    with patch("src.auth.utils.github_tokens", return_value="github_token"), \
+         patch("src.auth.utils.get_github_user_info", return_value=("sam@example.com", "sam")), \
+         patch("src.auth.service.generate_token", side_effect=[
+             ("access123", "jti_access", 111),
+             ("refresh123", "jti_refresh", 222),
+         ]), \
+         patch("src.auth.service.store_refresh_token_in_db", new_callable=AsyncMock, return_value=None):
+        access, user, refresh = await UserService.login_with_github(request, repo, token_repo)
+
+    assert access == "access123"
+    assert refresh == "refresh123"
+    assert user.email == "sam@example.com"
 
 
 

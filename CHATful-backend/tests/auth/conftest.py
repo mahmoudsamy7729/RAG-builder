@@ -2,6 +2,8 @@ import pytest
 from uuid import uuid4
 from sqlalchemy import select
 from src.hashing import hash_password
+from src.jwt import generate_token
+from src.config import settings
 from tests.conftest import TestSessionDB
 from src.auth.models import User, Provider
 
@@ -115,3 +117,16 @@ async def unverified_user():
 @pytest.fixture
 async def auth_headers(logged_in_user):
     return {"Authorization": f"Bearer {logged_in_user['token']}"}
+
+
+@pytest.fixture()
+def make_validation_token():
+    def _make(user_id):
+        token, _, _ = generate_token(
+            data={"sub": str(user_id)},
+            mins=5,
+            secret_key=settings.validation_secret_key,
+        )
+        return token
+
+    return _make
