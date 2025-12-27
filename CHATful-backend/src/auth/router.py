@@ -20,8 +20,7 @@ async def register_user(user_data: schemas.UserCreateRequest, repo: repo_depende
 
 
 @router.post("/login", response_model=schemas.UserLoginResponse, status_code=status.HTTP_200_OK)
-async def login_user(user_data: schemas.UserLoginRequest, repo: repo_dependency, token_repo: token_depedency,
-                    response: Response):
+async def login_user(user_data: schemas.UserLoginRequest, repo: repo_dependency, token_repo: token_depedency):
     access_token, user, refresh_token = await UserService.login_user(user_data, repo, token_repo)
     return {"token": access_token, "refresh_token": refresh_token, "user": user}
 
@@ -93,20 +92,12 @@ async def login_with_code(data: schemas.LoginWithCodeRequest,
 async def login_with_google():
     uri, state = utils.get_google_login_url()
     redirect_response = RedirectResponse(uri)
-    redirect_response.set_cookie(
-        "oauth_state_google",
-        state,
-        httponly=True,
-        secure=True,   # True in production with HTTPS
-        samesite="lax" # or "none" if cross-site redirect needs it
-    )
     return redirect_response
 
 
 @router.get("/auth/social/callback/google", response_model=schemas.UserLoginResponse, status_code=status.HTTP_200_OK)
 async def google_callback(response: Response, request: Request, repo:repo_dependency, token_repo: token_depedency):
     access_token, user, refresh_token = await UserService.login_with_google(request, repo, token_repo)
-    response.delete_cookie("oauth_state_google")
     return {"token": access_token, "refresh_token": refresh_token, "user": user}
 
 
@@ -114,20 +105,12 @@ async def google_callback(response: Response, request: Request, repo:repo_depend
 async def login_with_github():
     uri, state = utils.get_github_login_url()
     redirect_response = RedirectResponse(uri)
-    redirect_response.set_cookie(
-        "oauth_state_github",
-        state,
-        httponly=True,
-        secure=True,   # True in production with HTTPS
-        samesite="lax" # or "none" if cross-site redirect needs it
-    )
     return redirect_response
 
 
 @router.get("/auth/social/callback/github", response_model=schemas.UserLoginResponse, status_code=status.HTTP_200_OK)
 async def github_callback(response: Response, request: Request, repo:repo_dependency, token_repo: token_depedency):
     access_token, user, refresh_token = await UserService.login_with_github(request, repo, token_repo)
-    response.delete_cookie("oauth_state_github")
     return {"token": access_token, "refresh_token": refresh_token, "user": user}
 
 
