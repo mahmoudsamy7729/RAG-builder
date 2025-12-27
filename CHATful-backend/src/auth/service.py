@@ -219,12 +219,8 @@ class UserService:
     @staticmethod 
     async def login_with_google(request: Request, repo: UserRepository, token_repo: RefreshTokenRepository):
         code = request.query_params.get("code")
-        state = request.query_params.get("state")
-        cookie_state = request.cookies.get("oauth_state_google")
-        if not code or not state or not cookie_state:
+        if not code :
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OAuth callback")
-        if state != cookie_state:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OAuth state")
         token = await utils.google_tokens(code) 
         email, username = await utils.get_user_info(token)
         user = await repo.get_by_email(email)
@@ -252,12 +248,8 @@ class UserService:
         if error:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="GitHub authentication failed")
         code = request.query_params.get("code")
-        state = request.query_params.get("state")
-        cookie_state = request.cookies.get("oauth_state_github")
-        if not code or not state or not cookie_state:
+        if not code :
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OAuth callback")
-        if state != cookie_state:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OAuth state")
         token = await utils.github_tokens(code) 
         email, username = await utils.get_github_user_info(token)
         if email is None:
