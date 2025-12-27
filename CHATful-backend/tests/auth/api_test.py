@@ -2,6 +2,7 @@ import pytest
 from datetime import datetime, timezone, timedelta
 from uuid import uuid4
 from unittest.mock import patch
+from sqlalchemy import select
 from httpx import AsyncClient
 from fastapi import status
 from src.config import settings
@@ -222,6 +223,13 @@ async def test_forget_password_sends_email_when_user_exists(client: AsyncClient,
 
 
 @pytest.mark.asyncio
+async def test_request_login_code_invalid_email(client: AsyncClient):
+    response = await client.post("/request/login-code", json={"email": "missing@example.com"})
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.json()["detail"] == "Invalid  email."
+
+
+@pytest.mark.asyncio
 async def test_request_login_code_success(client: AsyncClient, active_user):
     with patch("src.auth.utils.generate_otp_code") as mock_generate, \
         patch("src.auth.emails.Emails.send_login_code") as mock_send_code:
@@ -308,3 +316,32 @@ async def test_github_callback_success(client: AsyncClient):
         data = response.json()
         assert data["token"] == "access"
         assert data["refresh_token"] == "refresh"
+
+
+@pytest.mark.asyncio
+async def test_new_password_success(client: AsyncClient, active_user, make_validation_token):
+    token = make_validation_token(active_user.id)
+    response = await client.post("/new-password", json={"password": "newpassword123", "token": token})
+    assert response.status_code == status.HTTP_202_ACCEPTED
+    assert response.json()["message"] == "Password has been changed successfuly"
+
+    login_response = await client.post("/login", json={"email": active_user.email, "password": "newpassword123"})
+    assert login_response.status_code == status.HTTP_200_OK
+
+
+@pytest.mark.asyncio
+async def test_new_password_invalid_token(client: AsyncClient):
+    response = await client.post("/new-password", json={"password": "newpassword123", "token": "invalid-token"})
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.json()["detail"] == "Invalid token"
+
+
+@pytest.mark.asyncio
+async def test_deactivate_user_success(client: AsyncClient, logged_in_user, auth_headers, db_session):
+    response = await client.post("/deactivate", headers=auth_headers)
+    assert response.status_code == status.HTTP_202_ACCEPTED
+    assert response.json()["message"] == "User deactivated."
+
+    result = await db_session.execute(select(User).where(User.id == logged_in_user["user"].id))
+    user = result.scalar_one()
+    assert user.is_active is False
